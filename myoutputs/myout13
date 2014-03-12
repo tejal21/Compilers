@@ -1,0 +1,156 @@
+Type
+FormalParam
+FormalParamList
+EventDecl
+Type
+FormalParam
+Type
+FormalParam
+FormalParamList
+EventDecl
+Type
+VariableDecl
+Type
+VariableDecl
+VariableDecl
+VariableDecl
+VariableDecl
+VariableDecl
+EventFormalParam
+NormalEvent
+PrimitivePat
+RefExpr
+RefExpr
+Literal
+Expr + Expr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Expr == Expr
+PrimitivePatWithCond
+(EventPat)
+EventPat : EventPat
+RefExpr
+RefExpr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Expr == Expr
+PrimitivePatWithCond
+(EventPat)
+EventPat : EventPat
+RefExpr
+RefExpr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Assignment
+PrimitivePatWithCond
+(EventPat)
+EventPat : EventPat
+RefExpr
+RefExpr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Expr == Expr
+PrimitivePatWithCond
+(EventPat)
+EventPat : EventPat
+RefExpr
+RefExpr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Expr == Expr
+PrimitivePatWithCond
+EventPat \/ EventPat
+RefExpr
+Literal
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Expr == Expr
+PrimitivePatWithCond
+EventPat \/ EventPat
+RefExpr
+RefExpr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+EventFormalParam
+EventFormalParam
+NormalEvent
+RefExpr
+RefExpr
+Expr == Expr
+PrimitivePatWithCond
+EventPat \/ EventPat
+RefExpr
+RefExpr
+Assignment
+AssignStmt
+Rule
+EventFormalParam
+NormalEvent
+PrimitivePat
+RefExpr
+RefExpr
+RefExpr
+Expr + Expr
+Assignment
+AssignStmt
+Rule
+Spec
+Finished parsing, here is the AST

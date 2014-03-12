@@ -1,0 +1,643 @@
+%{
+
+#include "Ast.h"
+#include "ParserUtil.h"
+#include "Error.h"
+
+using namespace std;
+
+extern int verbosity;
+extern int yylex();
+extern void yyerror(const char *s);
+int offSet;
+extern const OpNode::OpInfo opInfo[];
+vector <ExprNode*>* params;
+list <StmtNode*>* listStmts;
+Type* latestTypeTag;
+vector <Type*>* func_event_parameters;
+Type* func_return_type;
+Type* event_info;
+char* func_event_name;
+vector <VariableEntry*>* var_list;
+FunctionEntry* funcEntry;
+EventEntry* eventEntry;
+ClassEntry* classEntry;
+VariableEntry* variableEntry;
+
+
+InvocationNode* invocationNodeCall(char* function_name, vector<ExprNode*>* params)
+{
+    SymTabEntry* ste = stm.lookUp(function_name);
+    if(ste)
+        new InvocationNode(ste, params, yylineno, yycolumnno, yyfilename);
+}
+
+VariableEntry* variableEntryCall(string name, VariableEntry::VarKind v, Type* type, ExprNode* init)
+{
+    variableEntry = new VariableEntry(name, v, type, init, yylineno, yycolumnno, yyfilename);
+    if(!stm.lookUp(name))
+        stm.insert(variableEntry);
+
+    return variableEntry;
+}
+
+FunctionEntry* functionEntryCall(char * func_event_name, vector <Type*>* func_event_parameters,Type* func_return_type, CompoundStmtNode *csn)
+{
+    if(func_event_name == NULL)
+    {
+        cout<<"\n test1";
+        funcEntry = new FunctionEntry(string("dummy"), NULL, yylineno, yycolumnno, yyfilename);
+        stm.enterScope(funcEntry);
+    }
+    else
+    {
+        cout<<"\n test2";
+        Type* func_info = new Type(func_event_parameters, func_return_type);
+        funcEntry->name(string(func_event_name));
+        cout<<"\n fun_name: "<<funcEntry->name();
+        funcEntry->type(func_info);
+        cout<<"\n type: "<<funcEntry->type();
+        if(csn != NULL)
+            funcEntry->body(csn);
+    }
+    return funcEntry;
+}
+
+EventEntry* eventEntryCall(char* func_event_name, vector <Type*>* func_event_parameters)
+{
+
+    if(func_event_name == NULL)
+    {
+        eventEntry = new EventEntry(string("dummy"), yylineno, yycolumnno, yyfilename);
+        stm.enterScope(eventEntry);
+    }
+    else
+    {
+           Type* event_info = new Type(func_event_parameters, Type::TypeTag::EVENT);
+            eventEntry->name(string(func_event_name));
+            eventEntry->type(event_info);
+    }
+            return eventEntry;
+           
+}
+
+
+RuleNode* ruleNodeCall(BasePatNode* bpn, StmtNode* sn )
+{
+RuleNode* ruleNode = new RuleNode(new BlockEntry("", yylineno, yycolumnno, yyfilename), bpn, sn, yylineno, yycolumnno, yyfilename);
+
+GlobalEntry* ge = (GlobalEntry*)stm.currentScope(SymTabEntry::Kind::GLOBAL_KIND);
+if(ge)
+    ge->addRule(ruleNode);
+return ruleNode;
+    }
+
+ClassEntry* classEntryCall(string class_name)
+{
+
+classEntry = new ClassEntry(class_name, yylineno, yycolumnno, yyfilename);  
+if(!stm.lookUp(class_name))
+    stm.insert(classEntry);
+return classEntry;
+
+}
+
+
+PrimitivePatNode* primitivePatternCall(char* event_name, vector<VariableEntry*>* params, ExprNode* c, bool flag)
+{
+EventEntry* eventEntry;
+    if(!flag)
+    {
+       eventEntry  = (EventEntry*)stm.lookUp(event_name);
+        if(eventEntry)
+            return new PrimitivePatNode(eventEntry, params, c, yylineno, yycolumnno, yyfilename);
+    }
+    else
+    {
+        eventEntry = any;
+        return new PrimitivePatNode(eventEntry, params, c, yylineno, yycolumnno, yyfilename);
+    }
+}
+
+PatNode* patNodeCall(BasePatNode::PatNodeKind pk, BasePatNode *p1, BasePatNode*p2)
+{
+        return new PatNode(pk, p1, p2, yylineno, yycolumnno, yyfilename);    
+}
+
+OpNode* operationCall(OpNode::OpCode op, ExprNode *l, ExprNode *r)
+{
+            return new OpNode(op, l, r, yylineno, yycolumnno, yyfilename);
+}
+#define prt(x) cout << x << endl;
+%}
+
+%union{
+  unsigned int 		 uVal;
+  double             dVal;
+  char*              cVal;
+  vector<string>*    strVector;
+  Value*             valVal;
+
+  ExprNode*          exprVal;
+  vector<ExprNode*>* exprList;
+  RefExprNode*       refexpVal;
+
+  ClassEntry*        classEntry;
+  Type*              typeVal;
+  vector<Type*>*     typeList; 
+
+  EventEntry*        eventEntry;                        
+  VariableEntry*     variableEntry;
+  FunctionEntry*     functionEntry;
+
+  BasePatNode*       patVal;
+  PrimitivePatNode*  primPatVal;
+  StmtNode*          stmtVal;
+  list<StmtNode*>*   stmtList;
+  IfNode*            ifVal;
+  CompoundStmtNode*  compoundStmtVal;
+  RuleNode*          ruleNode;
+
+  vector<RuleNode*>* transList;
+  
+  vector<Type*>*     formalTypeVal;
+  const OpNode::OpInfo*    funIval;
+};
+
+/* Operators */
+
+%token TOK_LEX_ERROR TOK_PAT_STAR TOK_PAT_OR TOK_PAT_NOT
+%token TOK_PLUS TOK_MINUS TOK_UMINUS TOK_MULT TOK_DIV TOK_MOD 
+%token TOK_BITAND TOK_BITOR TOK_BITNOT TOK_BITXOR TOK_SHL TOK_SHR 
+%token TOK_GT TOK_LT TOK_GE TOK_LE TOK_EQ  TOK_NE TOK_AND TOK_OR TOK_NOT 
+%token TOK_COMMA TOK_ASSIGN TOK_SEMICOLON TOK_COLON TOK_ARROW
+%token TOK_LBRACE TOK_RBRACE TOK_LPAREN TOK_RPAREN
+
+/* Key words */
+
+%token TOK_IF TOK_ELSE TOK_CLASS TOK_RETURN TOK_EVENT TOK_ANY TOK_PRINT 
+%token TOK_UINTNUM TOK_DOUBLENUM TOK_VOID TOK_STRING TOK_STRCONST 
+%token TOK_INT TOK_UNSIGNED TOK_BOOL TOK_BYTE TOK_DOUBLE TOK_SHORT
+%token TOK_TRUE TOK_FALSE TOK_IDENT
+
+/******************************** Type Info ********************************/
+/* Uncomment types below as you start adding rules.
+   They are commented right now to prevent compile errors. */
+%type <functionEntry> function_decl function_prototype function_definition//function_header
+%type <variableEntry> func_local_var_decl variable_w_val1 variable_wo_val variable_w_val variable_wo_val1// variable_decl1 
+%type <typeList> formal_param_list formal_param_list1// formal_param_plus 
+%type <eventEntry> event_declaration //event_decl_hdr
+%type <patVal> event_pattern binary_pattern_operators  
+%type <primPatVal> primitive_pat //event
+%type <typeVal> type_recognition    // baseType . 
+%type <classEntry> class_declaration
+%type <exprList> expr_list //expr_plus
+%type <exprVal>condition_exp assignments expressions function_invocation  mathematical_expression unary_operators   //expr changed to expressions
+%type <refexpVal> ref_expression
+%type <ruleNode> rule
+//%type <strVector> id_list id_plus
+
+%type <cVal> TOK_IDENT TOK_PRINT id_type id_recognition variable1 variable formal_param formal_param1
+
+//%type <funIval> ev_or_fun
+%type <uVal> TOK_UINTNUM 
+%type <dVal> TOK_DOUBLENUM 
+%type <cVal> TOK_STRCONST
+
+%type <valVal> literals /*
+%type <stmtList> stmt_plus */
+%type <stmtVal> rule_body1 statements if_body else_statement asg_stmt//stmt changed to statements, simple_stmt 
+%type <compoundStmtVal> compoundStmt func_body_statement_recog // fun_rest
+%type <ifVal>  if_then_else_stmt
+
+/*********************   Precedence and Associativity    ********************/
+
+%nonassoc TOK_ASSIGN
+
+%left  TOK_PAT_OR 
+%left  TOK_COLON
+%left  TOK_PAT_STAR
+%right TOK_PAT_NOT
+
+%left  TOK_OR
+%left  TOK_AND
+%right TOK_NOT
+
+%nonassoc TOK_EQ TOK_NE TOK_GT TOK_LT TOK_GE TOK_LE
+
+%left  TOK_BITOR TOK_BITXOR
+%left  TOK_BITAND
+%right TOK_BITNOT 
+%left  TOK_SHL TOK_SHR
+
+%right TOK_DOUBLE_COLON
+
+%left  TOK_PLUS TOK_MINUS
+%left  TOK_MULT TOK_DIV TOK_MOD
+%right TOK_UMINUS 
+
+%left  TOK_LBRACK
+%left  TOK_DOT
+
+/**************************************************************************/
+
+%start specification_start
+%%
+specification_start:			specification								{prt("Spec");}
+
+specification: 				specification declarations		
+					|					
+					;
+					  
+declarations:				
+					 variable_decl
+					| event_declaration                                                       {   stm.leaveScope(); stm.insert(eventEntry); }		
+					| rule                                                                    {   stm.leaveScope(); stm.insert(eventEntry); }		
+					| function_definition                                                     {   stm.leaveScope(); stm.insert(funcEntry); }		
+					| function_prototype                                                      {   stm.leaveScope(); stm.insert(funcEntry);}		
+					| class_declaration		                                          {   stm.leaveScope();   }	
+					| statements                                                              {   stm.leaveScope();   }		
+                                        | TOK_IDENT general_list semicolon                                        {   stm.leaveScope();   }		
+
+
+					;
+general_list:                           general_list TOK_IDENT
+                                        | TOK_IDENT;
+
+class_declaration:	
+					TOK_CLASS id_recognition TOK_SEMICOLON TOK_SEMICOLON		{   prt("ClassDecl");  $$ = classEntryCall($2);         }
+					| TOK_CLASS id_recognition TOK_SEMICOLON 			{   prt("ClassDecl");  $$ = classEntryCall($2);         }
+					| TOK_CLASS error TOK_SEMICOLON TOK_SEMICOLON
+							{errMsg("Syntax error in class declaration: expecting class name");}	
+					| TOK_CLASS error TOK_SEMICOLON
+							{errMsg("Syntax error in class declaration: expecting class name");}
+					;
+
+		/********************************** ALL ON FUNCTIONS **********************************************/
+function_prototype:
+					function_decl TOK_SEMICOLON                                     { $$ = functionEntryCall(func_event_name, func_event_parameters, func_return_type, NULL);
+                                                                                                          func_event_parameters = NULL;  
+                                                                                                        }
+	
+					;
+
+function_decl:		
+ 					type_recognition id_recognition formal_param_list1		{
+                                                                                                        prt("FunctionDecl");  
+                                                                                                        func_return_type = $1;
+                                                                                                        func_event_name = $2;
+                                                                                                        }
+                                        
+ 					| TOK_UNSIGNED type_recognition id_recognition formal_param_list1		{   prt("FunctionDecl");
+                                                                                                        func_return_type = new Type(Type::UINT);
+                                                                                                        func_event_name = $3;
+                                                                                                        }
+                                        ;
+function_definition:
+					function_decl func_body_statement_recog TOK_SEMICOLON           { $$ = functionEntryCall(func_event_name, func_event_parameters, func_return_type, $2);
+                                                                                                          func_event_parameters = NULL; 
+                                                                                                        }
+					;
+func_body_statement_recog:
+					TOK_LBRACE func_body TOK_RBRACE					{prt("FunctionBody");}
+					;
+func_body:
+					func_local_var_decl
+					| func_body compoundStmt
+function_invocation:
+					id_recognition TOK_LPAREN expr_list TOK_RPAREN		{ prt("FunctionInvocation"); 
+                                                                                                  $$ = invocationNodeCall($1, params);
+                                                                                                }
+					;
+expr_list:
+					expr_list TOK_COMMA expressions                  {     params->push_back($3);               }
+					| expressions                                    {   params = new vector<ExprNode*>();  params->push_back($1); }
+					|
+					;		
+formal_param_list1:
+					TOK_LPAREN formal_param_list1 TOK_RPAREN		{        prt("FormalParamList");
+                                                                                                }
+					| formal_param_list1 TOK_COMMA formal_param1      {       /* func_event_parameters->push_back($1); */
+                                                                                                variableEntryCall($3, VariableEntry::PARAM_VAR, latestTypeTag, nullptr);
+                                                                                          }
+					| formal_param1                                   {        functionEntryCall(NULL, NULL, NULL, NULL);
+                                                                                                variableEntryCall($1, VariableEntry::PARAM_VAR, latestTypeTag, nullptr);
+                                                                                          }
+        
+					| TOK_LPAREN TOK_RPAREN                           {        functionEntryCall(NULL, NULL, NULL, NULL);
+                                                                                          }        
+					;
+formal_param1:
+					type_recognition id_recognition		          {        prt("FormalParam");  
+                                                                                                 $$ = $2;
+                                                                                                 if(func_event_parameters == NULL)
+                                                                                                      func_event_parameters = new vector<Type*>();
+                                                                                                 func_event_parameters->push_back($1); 
+                                                                                          }	
+					| id_type id_recognition			  {        prt("FormalParam");
+                                                                                                 if(func_event_parameters == NULL)
+                                                                                                      func_event_parameters = new vector<Type*>();
+                                                                                                 $$ = $2;
+                                      // func_event_parameters->push_back($1);          
+                                                                                          }	
+					;
+
+/*
+formal_param_list1:
+					TOK_LPAREN formal_param_list1 TOK_RPAREN	 { prt("FormalParamList"); }
+					| formal_param_list1 TOK_COMMA formal_param1
+					| formal_param1                                  {   functionEntryCall(NULL, NULL, NULL, NULL );            }                
+					| TOK_LPAREN TOK_RPAREN                          {   functionEntryCall(NULL, NULL, NULL, NULL );            }                
+					| TOK_LPAREN error
+					| TOK_LPAREN formal_param_list1 error		
+					;
+formal_param1:
+					type_recognition id_recognition			{        prt("FormalParam");
+                                                                                                 $$ = variableEntryCall($2, VariableEntry::PARAM_VAR, latestTypeTag, nullptr);
+                                                                                                 if(func_event_parameters == NULL)
+                                                                                                      func_event_parameters = new vector<Type*>();
+                                                                                                 func_event_parameters->push_back($1); 
+                                                                                        }	
+					| id_type id_recognition			{        prt("FormalParam");
+                                                                                                 if(func_event_parameters == NULL)
+                                                                                                      func_event_parameters = new vector<Type*>();$$ = variableEntryCall($2, VariableEntry::PARAM_VAR, latestTypeTag, nullptr);
+                                      // func_event_parameters->push_back($1);          
+                                                                                        }	
+					;
+*/
+func_local_var_decl:
+					type_recognition variable_decl_list1 TOK_SEMICOLON		
+					| TOK_UNSIGNED type_recognition variable_decl_list1 TOK_SEMICOLON
+					| type_recognition error TOK_SEMICOLON
+					;
+                                        
+variable_decl_list1:
+					 variable_wo_val1
+					| variable_w_val1
+					;
+variable_wo_val1:
+					variable_wo_val1 TOK_COMMA variable1
+                                               { $$ = variableEntryCall($3, VariableEntry::LOCAL_VAR, latestTypeTag, nullptr);}
+					| variable1
+					;
+variable_w_val1:
+					id_recognition TOK_ASSIGN expressions	    	{   prt("VariableDeclWithInit");
+                                               $$ = variableEntryCall($1, VariableEntry::LOCAL_VAR, latestTypeTag, $3);}
+					| error TOK_ASSIGN expressions
+						{errMsg("Error in variable declaration, may be a missing identifier");}
+					;
+variable1:		
+					id_recognition							{prt("VariableDecl");}
+					;
+		/************************************ ALL ON EVENTS ************************************************/
+event_declaration:
+					TOK_EVENT id_recognition formal_param_list TOK_SEMICOLON	{
+                                                                                                        prt("EventDecl");  $$ = eventEntryCall($2, func_event_parameters);
+                                                                                                        }
+					;
+
+rule:
+					event_pattern TOK_ARROW rule_body1 			{   prt("Rule");
+                                                                                                    $$ = ruleNodeCall($1, $3); }
+                                         
+					;
+primitive_pat:
+					TOK_IDENT ep_list_recognition				{
+                                                                                                     prt("PrimitivePat");
+                                                                                                     $$ = primitivePatternCall($1, var_list, NULL,false);
+                                                                                                }
+					| any_event_recog					{
+                                                                                                prt("PrimitivePat");
+                                                                                                $$ = primitivePatternCall("", NULL, NULL,true);
+                                                                                                }
+					| TOK_IDENT ep_list_recognition TOK_BITOR expressions	{
+                                                                                                prt("PrimitivePatWithCond");                                                                                               
+                                                                                                $$ = primitivePatternCall($1, var_list,$4,false);
+                                                                                                }	
+ 					;
+event_pattern:
+					primitive_pat                                           {       $$ = $1;        }
+					| binary_pattern_operators                              {       $$ = $1;        }
+					| TOK_LPAREN event_pattern TOK_RPAREN			{       $$ = $2;            
+                                                                                                    prt("(EventPat)");  }
+					;
+binary_pattern_operators:
+					event_pattern TOK_PAT_OR event_pattern 	        	{   prt("EventPat \\/ EventPat");
+                                                                                                    $$ = patNodeCall(BasePatNode::PatNodeKind::OR, $1, $3);
+                                                                                                }
+					| event_pattern TOK_PAT_STAR				{   prt("EventPat **");
+                                                                                                    $$ = patNodeCall(BasePatNode::PatNodeKind::STAR, $1, nullptr);
+                                                                                                }
+  					| event_pattern TOK_COLON event_pattern	        	{   prt("EventPat : EventPat");
+                                                                                                    $$ = patNodeCall(BasePatNode::PatNodeKind::SEQ, $1, $3);
+                                                                                                }
+					| TOK_NOT event_pattern    			        {   prt("!EventPat");
+                                                                                                    $$ = patNodeCall(BasePatNode::PatNodeKind::NEG, $2, nullptr);
+                                                                                                }
+					|
+					;
+rule_body1:
+					TOK_LBRACE compoundStmt TOK_RBRACE TOK_SEMICOLON	{   prt("CompoundStmt");    $$ = $2;
+                                                                                                }
+					| TOK_LBRACE compoundStmt TOK_RBRACE 			{   prt("CompoundStmt");    $$ = $2;
+                                                                                                }
+					| expressions TOK_SEMICOLON				{   prt("AssignStmt");      
+                                                                                                }
+					;
+
+ep_list_recognition:
+					TOK_LPAREN ep_list_recognition TOK_RPAREN			{ prt("NormalEvent");	   }
+					| ep_list_recognition TOK_COMMA TOK_IDENT			{ prt("EventFormalParam");
+                                                                                                          var_list->push_back(new VariableEntry($3, VariableEntry::PARAM_VAR, nullptr, nullptr, yylineno, yycolumnno, yyfilename));  
+                                                                                                        }
+					| TOK_IDENT							{ prt("EventFormalParam");
+                                                                                                          var_list = new vector<VariableEntry*>();
+                                                                                                          var_list->push_back(new VariableEntry($1,VariableEntry::PARAM_VAR, nullptr, nullptr, yylineno, yycolumnno, yyfilename));
+                                                                                                        }
+                                        ;
+					
+
+any_event_recog:
+					TOK_ANY								{prt("anyEvent");}
+					;
+
+
+formal_param_list:
+					TOK_LPAREN formal_param_list TOK_RPAREN		{        prt("FormalParamList");
+                                                                                        }
+					| formal_param_list TOK_COMMA formal_param      {       /* func_event_parameters->push_back($1); */
+                                                                                                variableEntryCall($3, VariableEntry::PARAM_VAR, latestTypeTag, nullptr);
+                                                                                        }
+					| formal_param                                  {        eventEntryCall(NULL, NULL);
+                                                                                                variableEntryCall($1, VariableEntry::PARAM_VAR, latestTypeTag, nullptr);
+                                                                                        }
+        
+					| TOK_LPAREN TOK_RPAREN                         {        eventEntryCall(NULL, NULL);
+                                                                                        }        
+					;
+formal_param:
+					type_recognition id_recognition			{        prt("FormalParam");  
+                                                                                                 $$ = $2;
+                                                                                                 if(func_event_parameters == NULL)
+                                                                                                      func_event_parameters = new vector<Type*>();
+                                                                                                 func_event_parameters->push_back($1); 
+                                                                                        }	
+					| id_type id_recognition			{        prt("FormalParam");
+                                                                                                 if(func_event_parameters == NULL)
+                                                                                                      func_event_parameters = new vector<Type*>();
+                                                                                                 $$ = $2;
+                                      // func_event_parameters->push_back($1);          
+                                                                                        }	
+					;
+
+		/******************************* ALL ON VARIABLES **********************************/
+variable_decl:
+					type_recognition variable_decl_list semicolon		
+					| TOK_UNSIGNED type_recognition variable_decl_list semicolon
+					;
+variable_decl_list:
+					 variable_wo_val
+					| variable_w_val
+					;
+semicolon:
+                                        semicolon TOK_SEMICOLON
+                                        | TOK_SEMICOLON
+                                        ;
+variable_wo_val:
+					variable_wo_val TOK_COMMA variable
+                                               { cout<<"\n test4"; $$ = variableEntryCall($3, VariableEntry::GLOBAL_VAR, latestTypeTag, nullptr);}
+					| variable
+					;
+variable_w_val:
+					id_recognition TOK_ASSIGN expressions				{
+                                                                                                         prt("VariableDeclWithInit");
+                                                                                                         $$ = variableEntryCall($1, VariableEntry::GLOBAL_VAR, latestTypeTag, $3);
+                                                                                                         }
+					| error TOK_ASSIGN expressions
+						{errMsg("Error in variable declaration, may be a missing identifier");}
+					;
+variable:		
+					TOK_IDENT							{prt("VariableDecl");}
+					;
+
+		/***************************** Statements **********************************************/
+statements:
+					if_then_else_stmt						{       $$ = $1;        }
+					| asg_stmt                                                      {       $$ = $1;        }
+					| function_invocation TOK_SEMICOLON				{
+                                                                                                                           
+                                                                                                                prt("FunctionInvocationStmt");
+                                                                                                        }
+					| TOK_SEMICOLON
+                                        ;
+compoundStmt:
+					compoundStmt statements		                                 {   listStmts->push_back($2);
+                                                                                                         }	
+					| statements                                                     {
+                                                                                                            listStmts = new list<StmtNode*>();
+                                                                                                            listStmts->push_back($1);    
+                                                                                                         }
+					;
+                                        
+
+			/********************** IF Statements **************************************/
+if_then_else_stmt:			
+					TOK_IF TOK_LPAREN condition_exp TOK_RPAREN if_body else_statement {prt("IfThenElseStmt");
+                                            $$ = new IfNode($3, $5, $6, yylineno, yycolumnno, yyfilename);                 }
+					| TOK_IF TOK_LPAREN condition_exp TOK_RPAREN if_body		 {      prt("IfThenStmt");	
+                                            $$ = new IfNode($3, $5, nullptr, yylineno, yycolumnno, yyfilename);                 }
+					   ;
+if_body:
+					TOK_LBRACE compoundStmt TOK_RBRACE	        		{prt("CompoundStmt");}
+					|TOK_LBRACE TOK_RBRACE						{prt("CompoundStmt");}
+					|statements
+					;
+
+condition_exp:
+					expressions							{prt("(Expr)");}
+					;
+else_statement:
+					TOK_ELSE else_body
+					;
+else_body:
+					statements				
+					|TOK_LBRACE compoundStmt TOK_RBRACE			{prt("CompoundStmt");}
+					|TOK_LBRACE TOK_RBRACE						{prt("CompoundStmt");}
+					;
+
+		/****************************** Operations ****************************************/
+							
+mathematical_expression:
+					 expressions TOK_MINUS expressions		{prt("Expr - Expr"); $$ = operationCall(OpNode::OpCode::MINUS, $1, $3);         }
+					| expressions TOK_PLUS expressions		{prt("Expr + Expr"); $$ = operationCall(OpNode::OpCode::PLUS, $1, $3);          } 
+					| expressions TOK_MULT expressions		{prt("Expr * Expr"); $$ = operationCall(OpNode::OpCode::MULT, $1, $3);          }
+					| expressions TOK_DIV expressions		{prt("Expr / Expr"); $$ = operationCall(OpNode::OpCode::DIV, $1, $3);           }
+					| expressions TOK_MOD expressions		{prt("Expr % Expr"); $$ = operationCall(OpNode::OpCode::MOD, $1, $3);           }
+					| expressions TOK_GT expressions		{prt("Expr > Expr"); $$ = operationCall(OpNode::OpCode::GT, $1, $3);            }
+					| expressions TOK_LT expressions		{prt("Expr < Expr"); $$ = operationCall(OpNode::OpCode::LT, $1, $3);            }
+					| expressions TOK_GE expressions		{prt("Expr >= Expr");$$ = operationCall(OpNode::OpCode::GE, $1, $3);            }
+					| expressions TOK_LE expressions		{prt("Expr <= Expr");$$ = operationCall(OpNode::OpCode::LE, $1, $3);            }
+					| expressions TOK_NE expressions		{prt("Expr != Expr");$$ = operationCall(OpNode::OpCode::NE, $1, $3);            }
+					| expressions TOK_EQ expressions		{prt("Expr == Expr");$$ = operationCall(OpNode::OpCode::EQ, $1, $3);            }
+					| expressions TOK_AND expressions		{prt("Expr && Expr");$$ = operationCall(OpNode::OpCode::AND, $1, $3);           }
+					| expressions TOK_OR expressions		{prt("Expr || Expr");$$ = operationCall(OpNode::OpCode::OR, $1, $3);            }
+					| expressions TOK_BITAND expressions		{prt("Expr & Expr"); $$ = operationCall(OpNode::OpCode::BITAND, $1, $3);        }
+					| expressions TOK_BITOR expressions		{prt("Expr | Expr"); $$ = operationCall(OpNode::OpCode::BITOR, $1, $3);         }
+					| expressions TOK_BITXOR expressions		{prt("Expr ^ Expr"); $$ = operationCall(OpNode::OpCode::BITXOR, $1, $3);        }
+					| expressions TOK_SHR expressions		{prt("Expr >> Expr");$$ = operationCall(OpNode::OpCode::SHR, $1, $3);           }
+					| expressions TOK_SHL expressions		{prt("Expr << Expr");$$ = operationCall(OpNode::OpCode::SHL, $1, $3);           }
+					;
+unary_operators:
+					 TOK_NOT expressions				{prt("!Expr");$$ = operationCall(OpNode::OpCode::NOT,$2,nullptr);               }
+					| TOK_BITNOT expressions			{prt("~Expr");$$ = operationCall(OpNode::OpCode::BITNOT,$2,nullptr);            }
+					| TOK_MINUS expressions	%prec TOK_UMINUS	{prt("-Expr");$$ = operationCall(OpNode::OpCode::UMINUS,$2,nullptr);            }
+expressions:
+					ref_expression			                {   $$ = $1;                                                                    }	
+					| assignments		                        {   $$ = $1;                                                                    }
+					| function_invocation                           {   $$ = $1;                                                                    }
+					| literals                                      {   $$ = new ValueNode($1, yylineno, yycolumnno, yyfilename);                   }
+					| TOK_LPAREN expressions TOK_RPAREN		{   $$ = $2;    prt("(Expr)");                                                  }
+					| unary_operators                               {   $$ = $1;                                                                    }
+					| mathematical_expression                       {   $$ = $1;                                                                    }
+					;
+ref_expression:
+			    		TOK_IDENT			        	{                    prt("RefExpr");
+                                                                                        RefExprNode($1, nullptr, yylineno, yycolumnno,yyfilename); }
+					;			
+					
+
+asg_stmt:
+					assignments TOK_SEMICOLON		    	{   prt("AssignStmt");  $$ = new ExprStmtNode($1, yylineno, yycolumnno, yyfilename);  }
+					;
+assignments:				
+					ref_expression TOK_ASSIGN expressions	        {   prt("Assignment"); $$ = operationCall(OpNode::OpCode::ASSIGN, $1, $3);      }
+					;
+literals:				
+					TOK_STRCONST					{   prt("Literal");  $$ = new Value($1);         }
+					| TOK_UINTNUM					{   prt("Literal");  $$ = new Value($1,Type::UINT);   }
+					| TOK_DOUBLENUM					{   prt("Literal");  $$ = new Value($1);         }
+					| TOK_MINUS TOK_UINTNUM						{prt("Literal"); prt("-Expr");}
+					| TOK_TRUE					{   prt("Literal");   $$ = new Value(true);        }
+					| TOK_FALSE					{   prt("Literal");   $$ = new Value(false);        }
+					;
+
+
+id_type:
+					TOK_IDENT							{prt("Type");}
+					;
+id_recognition:
+					TOK_IDENT
+					;
+type_recognition:
+					 TOK_INT	      	{   prt("Type");   $$ = new Type(Type::INT);    latestTypeTag=$$;     } 
+					| TOK_BOOL	      	{   prt("Type");   $$ = new Type(Type::BOOL);   latestTypeTag=$$;     }
+					| TOK_BYTE	      	{   prt("Type");   $$ = new Type(Type::BYTE);   latestTypeTag=$$;     }
+					| TOK_DOUBLE	      	{   prt("Type");   $$ = new Type(Type::DOUBLE); latestTypeTag=$$;     }
+					| TOK_VOID            	{   prt("Type");   $$ = new Type(Type::VOID);   latestTypeTag=$$;     }
+					| TOK_STRING	      	{   prt("Type");   $$ = new Type(Type::STRING); latestTypeTag=$$;     }
+                                        | TOK_UNSIGNED TOK_INT  {   prt("Type");   $$ = new Type(Type::UINT);   latestTypeTag=$$;     }
+                                      //  | TOK_IDENT             {}
+                                        ;                                                                                         
+
+
+%%

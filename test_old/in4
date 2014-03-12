@@ -1,0 +1,15 @@
+/* 
+ * One interface, one module
+ * Tests: 
+ *        class declaration 
+ */
+        
+
+    class CString;;
+
+    event open (CString a1 , int a2 , unsigned int a3);
+    int logMessage(string x) ;
+
+    open(file, flags, mode) -> { 
+            logMessage("open: testing almost nothing"); 
+    };

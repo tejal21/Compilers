@@ -1,0 +1,18 @@
+/*
+ * One interface, one module
+ * Tests:
+	  function declaration with body
+ *        function invocation
+ */
+
+
+    event open (string a1 , int a2 , unsigned int a3);
+    void g() {
+	int a1, a2;
+	a1=1;
+   };
+
+   open(file, flags, mode) -> {
+            g();
+    } ;
+

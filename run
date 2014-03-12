@@ -1,0 +1,14 @@
+#!
+make clean
+make
+rm -rf myoutputs
+mkdir myoutputs
+for i in `seq 1 17`;
+do
+    echo;echo "---->Running in$i"
+    ./demo test_old/in$i >myoutputs/myout$i;
+    echo;echo "---->Diff"
+    diff test_old/out$i myoutputs/myout$i
+    echo;
+done  
+

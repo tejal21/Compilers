@@ -1,0 +1,255 @@
+#define FTP_SITE_EXEC 7
+#define FTP_INVALID_EXEC 8
+#define FTP_PRIV_ESCALATE 9 
+
+    class CString;;
+    int f(int g);
+    string get(const CString);
+    void setCStr(CString s, string s);
+    class Integer;
+    int getInt(Integer i);
+    void setInt(Integer i, int j);
+    class ArgV;
+    int getNumberOfArgs(ArgV a);
+    int getArg(int i, ArgV a);
+    class pid_t;
+    int getpid_t(pid_t p);
+    void setpid_t(pid_t p, int i);
+    class SchedParamP;
+    void set(SchedParamP s, int i);
+    class VoidP;
+    void setvoid(VoidP p, int i);
+    int getvoid(VoidP p);
+    class size_t;
+    int getsize(size_t s);
+    class StatP;
+    void setstat(StatP s);
+    class NewStatP;
+    void setnstat(NewStatP n, int i);
+    event open (CString a1 , int a2 , unsigned int a3);
+    event close (Integer a1);
+    event chroot (CString a1);
+    event lstat(CString a1 , NewStatP a2 );
+
+    int logMessage(string x);
+    int logMessageInt(string x, int y);
+    int isInFile(string x, string y);
+    int getpid();
+    int isChild(pid_t a);
+
+    event execve(CString a1, ArgV a2, ArgV a3);
+    event fork();
+    event clone();
+        
+    event kill ( pid_t a1 , int a2 );
+    event ptrace ( pid_t a1 , int a2 , int a3 , int a4);
+    event sched_setparam ( pid_t a1 , SchedParamP a2 );
+    event sched_setscheduler ( pid_t a1 , int a2 , SchedParamP a3);
+    event setpgid ( pid_t a1 , pid_t a2 );
+    event setpriority ( pid_t a1 , int a2 , int a3);
+    event mlock (VoidP a1, size_t a2);
+    event mlockall ( int a1);
+    event munlockall ( );
+        
+#define proc_ops() ((execve(a1, a2, a3)) \/ (clone()) \/ (fork()))
+#define ABS(X) \
+ ((open(a1, a2, a3) | ((get(a1) == "abc") && (X = a2))): \
+                        (lstat(s1, s2):(close(c1) | (getInt(c1) == X)))*)
+        
+    int isInt(int i) ;
+    unsigned int isUInt(unsigned int i) ;
+
+    short isShort(short s) ;
+    unsigned int isUShort(unsigned int s) ;
+        
+    long isLong(long l) ;
+    unsigned int isULong(unsigned int l) ;
+
+    int valid_write; 
+
+#define procInterference(x) \
+  ((kill(a1,a2)|getpid_t(a1)!=getpid()&&getpid_t(a1)!=0 && tmp = a2 && x = a2)\
+  \/ (ptrace(a1,a2,a3,a4))\
+  \/ (sched_setscheduler(a1,a2,a3)|getpid_t(a1)!=getpid()&&getpid_t(a1)!= 0\
+                                      && isChild(a1) != 0) \
+  \/ (sched_setparam (a1, a2)|getpid_t(a1) != getpid())\
+  \/ (setpriority(a1,a2,a3)|getpid_t(a1)!= getpid() && a2 !=0 \
+                                     && isChild(a1) !=0)\
+  \/ (setpgid(a1, a2 ))\
+  \/ (mlock (a1 ,a2 ))\
+  \/ (mlockall (a1))\
+  \/ (munlockall()))
+
+    int admin_file = 0; 
+    string admin_file_name; 
+    int globalTemp;
+    int realUid;
+    int foundFlag = 0; 
+    int syscall;
+    int loggedUser ; 
+    string tempfile; 
+    string checkProcess; 
+    string check_file;
+
+    // privileged calls
+      any** : (privileged())  -> { 
+                    syscall = getCurrentSysCall();
+                    logMessageInt("privileged call %d\n", syscall);
+       } ;
+
+      any -> { a = b;};
+
+    // process interference
+     (any) : (procInterference(b)) ->   { a = b; };
+
+    // no execs as root -- rule not tested yet. 
+      (any)** : execve(proc, argv, envp)|
+            ((geteuid()==0) && processname = get(proc))-> {
+            checkProcess = processname; 
+            foundFlag = 0; 
+            if (foundFlag == 0) {
+             logMessageStr("exec of process  %s not permitted\n", checkProcess);
+            cidfLog(FTP_INVALID_EXEC);
+            fake(-1,22); 
+            }
+            foundFlag = 0; 
+    } ;
+            
+
+    // write operations involving file names.
+      (any)**:writeOps(check_file) -> 
+             { 
+                    valid_write = 0;
+            } ;
+
+    // only root can read certain files... customization needed. 
+    // read operations involving file names.
+     (any)**:rdOps(check_file) ->
+	    { ;
+       } ;
+    
+    // file attribute change operation: rename, symlink, link, utime, chmod
+    (any)**:fileAttrChange(check_file) ->
+    {
+            syscall = getCurrentSysCall();
+    } ;
+
+    // log all ipc calls
+     (any1())**:ipc1(a1) -> 
+            { 
+                    logMessage("ipc call"); 
+            } ;
+
+    // no socket calls ..
+    (any)**:((connectCalls()) \/ (acceptCalls()) \/ (otherSockCalls()))
+            -> {
+                    syscall = getCurrentSysCall();
+                    logMessageInt("socket call %d\n", syscall);
+               }
+
+
+    (any)**:(setResourceAttr()) -> {
+                    syscall = getCurrentSysCall();
+                    logMessageInt("change resource attrib %d\n", syscall);
+            } ;
+
+     (any)**: unImplemented() -> {
+       logMessage("unimplemented"); 
+    } ;
+    
+
+
+    // clone 
+     (any)**:unusualProcOp() -> {
+            logMessage("clone\n");
+            };
+
+    // Line 11: store the uid of the logged user
+     (notSetreuid())**:setreuid(a9,a10)|(tmp=a10) ->
+            {
+                    loggedUser = tmp;
+            } ;
+
+    // line 12: getpeername -- socket calls not done yet.
+    // line 13: getpeername 
+    // line 14: user authentication must precede before userid 
+    // changes to that of the user
+
+    (notOpenpasswd())**:(setreuid(a1,a2)) ->
+    {
+            logMessage("setreuid before user authentication !\n"); 
+
+    } ;
+
+
+
+    // line 15: access limited to admin file before user login
+    (notSetreuid())**:open(a5,a6,a7)|((writeFile(a6)) && (
+            admin_file_name = a5)) -> {
+                    admin_file = 0; 
+
+    };
+
+
+    //line 16: access limited to certain system calls before user login
+     (notSetreuid())**: ((ftpInitBadCall()) \/ 
+                    (fileAttrCond(a11,fileAList)))  -> {   
+            syscall = getCurrentSysCall();
+            logMessage("invalid system call before login %d\n", syscall);  
+    }
+
+
+    // line 17: dependent on socket calls...
+
+    // line 18: anonymous user login
+
+    // line 19: no execs if setuid to a non logged user.
+    (notSetuidloggedUser())**:execve(proc, argv, envp) -> {
+            logMessage("execve call by root \n");
+            
+    } ;
+
+    // rule 20 resetting userid to 0. 
+    (any)**:(setreuid(a100,a101)|(a101==0)):(ftpPrivCalls())**:
+    (srLoggedUserNew() ) ->        
+    {
+            syscall = getCurrentSysCall();
+            logMessageInt("invalid system call %d when uid = 0\n", syscall); 
+        
+    }       ;
+
+    // line 20: 
+    (any)**:(setreuid(a5,a6)|(a6==0)):(ftpPrivCalls())**:
+    (execve(a7,a8,a9)) -> {
+            logMessage("invalid execve when uid = 0\n"); 
+            cidfLog(FTP_PRIV_ESCALATE);
+            abortCall(); 
+    };
+    // rule 21 closeOnExec 
+     (any)**:(open(a1,a2,a3)|((uid = geteuid()) && (uid=0) && 
+    (fd = realRC()))):(notClose())**:(execve(a1,a2,a3)|(closeOnExec(fd)==0))
+            -> {   logInts(0,PRIV);
+                }
+    // line 22: covered in generic case-- invalid write
+
+    // rule 23 site specific -- certain users cannot login
+    // certain users cannot login 
+    (notSetreuid())**: setreuid(u, r)|(exists(u, invalid_user_list)) -> {
+            logMessage("invalid user login \n");
+    } ;
+
+    // line 24: covered in generic case -- arbitrary exec not allowed
+    // rule 25  check port and service. 
+
+     (any)**: (connect(a5,a6,a7)|(checkIPAddress(a6))) -> {
+    ;
+    }       ;
+
+
+
+
+
+
+
+
+

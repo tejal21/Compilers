@@ -1,0 +1,7 @@
+open(file, flags, mode) -> {
+a1*b1;
+a1*10-b;
+a1/b1;
+a1/10;
+
+};

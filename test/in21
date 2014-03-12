@@ -1,0 +1,6 @@
+
+int get2(int a1)
+{
+    int x;
+    g(x, y);
+    };

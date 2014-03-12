@@ -1,0 +1,23 @@
+Type
+FormalParam
+Type
+FormalParam
+Type
+FormalParam
+FormalParamList
+EventDecl
+Type
+VariableDecl
+EventFormalParam
+EventFormalParam
+EventFormalParam
+NormalEvent
+PrimitivePat
+RefExpr
+(Expr)
+CompoundStmt
+IfThenStmt
+CompoundStmt
+Rule
+Spec
+Finished parsing, here is the AST
